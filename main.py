@@ -81,12 +81,22 @@ def create_subscription(subscription: schemas.SubscriptionCreate, db: Session = 
     return db_subscription
 
 
-@app.get("/subscriptions/", response_model=List[schemas.Subscription])
+@app.get("/subscriptions/")
 def read_subscriptions(skip: int = 0, limit: int = 100, service_type: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.Subscription)
     if service_type:
         query = query.filter(models.Subscription.service_type == service_type)
-    return query.offset(skip).limit(limit).all()
+    subs = query.offset(skip).limit(limit).all()
+    result = []
+    for sub in subs:
+        sub_dict = {c.name: getattr(sub, c.name) for c in sub.__table__.columns}
+        sub_dict["days_until_renewal"] = calculate_days_until_renewal(sub)
+        sub_dict["created_at"] = sub.created_at.isoformat() if sub.created_at else None
+        sub_dict["updated_at"] = sub.updated_at.isoformat() if sub.updated_at else None
+        sub_dict["subscription_date"] = sub.subscription_date.isoformat() if sub.subscription_date else None
+        sub_dict["trial_end_date"] = sub.trial_end_date.isoformat() if sub.trial_end_date else None
+        result.append(sub_dict)
+    return result
 
 
 @app.get("/subscriptions/{subscription_id}", response_model=schemas.SubscriptionDetail)
@@ -427,6 +437,19 @@ def create_shared_member(member: schemas.SharedMemberCreate, db: Session = Depen
     return db_member
 
 
+@app.get("/shared-members/")
+def get_all_shared_members(db: Session = Depends(get_db)):
+    members = db.query(models.SharedMember).all()
+    result = []
+    for m in members:
+        sub = db.query(models.Subscription).filter(models.Subscription.id == m.subscription_id).first()
+        member_dict = {c.name: getattr(m, c.name) for c in m.__table__.columns}
+        member_dict["subscription_name"] = sub.name if sub else "未知"
+        member_dict["last_payment_date"] = m.last_payment_date.isoformat() if m.last_payment_date else None
+        result.append(member_dict)
+    return result
+
+
 @app.get("/shared-members/{subscription_id}", response_model=List[schemas.SharedMember])
 def get_shared_members(subscription_id: int, db: Session = Depends(get_db)):
     return db.query(models.SharedMember).filter(models.SharedMember.subscription_id == subscription_id).all()
@@ -747,4 +770,4 @@ def delete_screenshot(screenshot_id: int, db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8765)
+    uvicorn.run("main:app", host="0.0.0.0", port=8765, reload=False)

@@ -477,11 +477,8 @@ async function loadCostEffectiveness() {
 
 async function loadRenewalCountdown() {
     const subs = await fetch(`${API_BASE}/subscriptions/`).then(r => r.json());
-    const withCountdown = await Promise.all(subs.map(async sub => {
-        const detail = await fetch(`${API_BASE}/subscriptions/${sub.id}`).then(r => r.json());
-        return { ...sub, days: detail.days_until_renewal };
-    }));
-    withCountdown.sort((a, b) => (a.days || 999) - (b.days || 999));
+    const withCountdown = subs.map(sub => ({ ...sub, days: sub.days_until_renewal }));
+    withCountdown.sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
 
     document.getElementById('renewal-countdown').innerHTML = withCountdown.slice(0, 8).map(sub => {
         const days = sub.days || 30;
@@ -534,20 +531,13 @@ async function loadRenewalCountdown() {
 }
 
 async function loadSharedMembers() {
-    const subs = await fetch(`${API_BASE}/subscriptions/`).then(r => r.json());
-    const subMap = Object.fromEntries(subs.map(s => [s.id, s]));
-    const allMembers = [];
-    
-    for (const sub of subs) {
-        const members = await fetch(`${API_BASE}/shared-members/${sub.id}`).then(r => r.json());
-        members.forEach(m => allMembers.push({ ...m, sub_name: sub.name }));
-    }
+    const allMembers = await fetch(`${API_BASE}/shared-members/`).then(r => r.json());
 
     document.getElementById('shared-list').innerHTML = allMembers.map(m => `
         <div class="flex items-center justify-between p-3 border rounded-lg">
             <div>
                 <p class="font-medium">${m.name}</p>
-                <p class="text-sm text-gray-500">${m.sub_name}</p>
+                <p class="text-sm text-gray-500">${m.subscription_name}</p>
             </div>
             <div class="text-right">
                 <p class="font-bold">¥${m.share_amount.toFixed(2)}</p>
@@ -649,11 +639,15 @@ function openAddSharedMemberModal() {
 
 async function loadCancellationGuides() {
     const guides = await fetch(`${API_BASE}/cancellation-guides/`).then(r => r.json());
+    window._guidesData = {};
+    guides.forEach(g => {
+        window._guidesData[g.subscription_id] = g;
+    });
     document.getElementById('cancellation-guides').innerHTML = guides.map(g => `
         <div class="p-4 border rounded-lg">
             <div class="flex justify-between items-start mb-3">
                 <h4 class="font-bold">${g.subscription_name}</h4>
-                <button onclick="editGuide(${g.subscription_id}, '${g.steps.replace(/'/g, "\\'")}', '${(g.alternative_services || '').replace(/'/g, "\\'")}', '${(g.notes || '').replace(/'/g, "\\'")}')" class="text-sm text-indigo-600 hover:underline">编辑</button>
+                <button onclick="editGuide(${g.subscription_id})" class="text-sm text-indigo-600 hover:underline">编辑</button>
             </div>
             <div class="text-sm space-y-2">
                 <div>
@@ -678,12 +672,19 @@ async function loadGuideSubOptions() {
     if (subs.length) document.getElementById('guide-sub-id').value = subs[0].id;
 }
 
-function editGuide(subId, steps, alternatives, notes) {
+function editGuide(subId) {
+    const guide = window._guidesData?.[subId];
     document.getElementById('guide-sub-id').value = subId;
     document.getElementById('guide-sub-select').value = subId;
-    document.querySelector('#edit-guide-form [name="steps"]').value = steps;
-    document.querySelector('#edit-guide-form [name="alternative_services"]').value = alternatives;
-    document.querySelector('#edit-guide-form [name="notes"]').value = notes;
+    if (guide) {
+        document.querySelector('#edit-guide-form [name="steps"]').value = guide.steps || '';
+        document.querySelector('#edit-guide-form [name="alternative_services"]').value = guide.alternative_services || '';
+        document.querySelector('#edit-guide-form [name="notes"]').value = guide.notes || '';
+    } else {
+        document.querySelector('#edit-guide-form [name="steps"]').value = '';
+        document.querySelector('#edit-guide-form [name="alternative_services"]').value = '';
+        document.querySelector('#edit-guide-form [name="notes"]').value = '';
+    }
     openModal('edit-cancellation-guide-modal');
 }
 
