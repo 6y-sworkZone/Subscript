@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime, timedelta
@@ -8,6 +9,7 @@ import os
 import csv
 import io
 import json
+import uuid
 from database import engine, get_db
 import models
 import schemas
@@ -61,7 +63,7 @@ def get_monthly_price(subscription: models.Subscription) -> float:
 
 @app.get("/")
 def read_root():
-    return {"message": "Subscript API is running!"}
+    return RedirectResponse(url="/static/index.html")
 
 
 @app.post("/subscriptions/", response_model=schemas.Subscription)
@@ -647,6 +649,100 @@ def get_favicon(url: str):
         return {"icon_url": f"{url.rstrip('/')}/favicon.ico"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/subscriptions/batch/", response_model=List[schemas.Subscription])
+def batch_create_subscriptions(subscriptions: List[schemas.SubscriptionCreate], db: Session = Depends(get_db)):
+    created = []
+    for sub_data in subscriptions:
+        db_sub = models.Subscription(**sub_data.model_dump())
+        db.add(db_sub)
+        db.flush()
+        db.add(models.PriceHistory(
+            subscription_id=db_sub.id,
+            new_price=db_sub.price,
+            change_date=date.today()
+        ))
+        created.append(db_sub)
+    db.commit()
+    for s in created:
+        db.refresh(s)
+    return created
+
+
+@app.get("/cancellation-guides/", response_model=List[dict])
+def list_cancellation_guides(db: Session = Depends(get_db)):
+    guides = db.query(models.CancellationGuide).all()
+    result = []
+    for g in guides:
+        sub = db.query(models.Subscription).filter(models.Subscription.id == g.subscription_id).first()
+        result.append({
+            "id": g.id,
+            "subscription_id": g.subscription_id,
+            "subscription_name": sub.name if sub else "未知",
+            "steps": g.steps,
+            "alternative_services": g.alternative_services,
+            "notes": g.notes
+        })
+    return result
+
+
+@app.put("/cancellation-guides/{subscription_id}", response_model=schemas.CancellationGuide)
+def update_cancellation_guide(subscription_id: int, guide: schemas.CancellationGuideCreate, db: Session = Depends(get_db)):
+    db_guide = db.query(models.CancellationGuide).filter(models.CancellationGuide.subscription_id == subscription_id).first()
+    if not db_guide:
+        db_guide = models.CancellationGuide(**guide.model_dump())
+        db.add(db_guide)
+    else:
+        for key, value in guide.model_dump().items():
+            setattr(db_guide, key, value)
+    db.commit()
+    db.refresh(db_guide)
+    return db_guide
+
+
+@app.post("/screenshots/")
+def upload_screenshot(
+    subscription_id: int,
+    billing_month: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join("static", "uploads", filename)
+    with open(filepath, "wb") as f:
+        f.write(file.file.read())
+    db_screenshot = models.BillScreenshot(
+        subscription_id=subscription_id,
+        file_path=f"/static/uploads/{filename}",
+        billing_month=billing_month
+    )
+    db.add(db_screenshot)
+    db.commit()
+    db.refresh(db_screenshot)
+    return {"id": db_screenshot.id, "file_path": db_screenshot.file_path, "billing_month": billing_month}
+
+
+@app.get("/screenshots/")
+def list_screenshots(subscription_id: Optional[int] = None, db: Session = Depends(get_db)):
+    query = db.query(models.BillScreenshot)
+    if subscription_id:
+        query = query.filter(models.BillScreenshot.subscription_id == subscription_id)
+    results = query.order_by(models.BillScreenshot.uploaded_at.desc()).all()
+    return [{"id": s.id, "subscription_id": s.subscription_id, "file_path": s.file_path, "billing_month": s.billing_month, "uploaded_at": s.uploaded_at.isoformat()} for s in results]
+
+
+@app.delete("/screenshots/{screenshot_id}")
+def delete_screenshot(screenshot_id: int, db: Session = Depends(get_db)):
+    screenshot = db.query(models.BillScreenshot).filter(models.BillScreenshot.id == screenshot_id).first()
+    if not screenshot:
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+    if os.path.exists(screenshot.file_path.lstrip("/")):
+        os.remove(screenshot.file_path.lstrip("/"))
+    db.delete(screenshot)
+    db.commit()
+    return {"message": "Screenshot deleted"}
 
 
 if __name__ == "__main__":

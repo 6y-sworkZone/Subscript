@@ -218,7 +218,10 @@
                         <div id="trial-list" class="space-y-3"></div>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow">
-                        <h3 class="font-bold mb-4">共享订阅管理</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold">共享订阅管理</h3>
+                            <button onclick="openAddSharedMemberModal()" class="text-sm text-indigo-600 hover:underline">+ 添加成员</button>
+                        </div>
                         <div id="shared-list" class="space-y-3"></div>
                     </div>
                 </div>
@@ -244,12 +247,19 @@
                 </div>
 
                 <div class="bg-white p-6 rounded-xl shadow mb-6">
-                    <h3 class="font-bold mb-4">取消订阅指南</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold">取消订阅指南</h3>
+                        <button onclick="openEditGuideModal()" class="text-sm text-indigo-600 hover:underline">+ 添加指南</button>
+                    </div>
                     <div id="cancellation-guides" class="space-y-4"></div>
                 </div>
 
                 <div class="bg-white p-6 rounded-xl shadow">
                     <h3 class="font-bold mb-4">账单截图存档</h3>
+                    <div class="flex gap-4 mb-4">
+                        <select id="screenshot-sub-id" class="border rounded px-4 py-2 flex-1"></select>
+                        <input type="month" id="screenshot-month" class="border rounded px-4 py-2">
+                    </div>
                     <input type="file" id="screenshot-upload" accept="image/*" class="mb-4">
                     <button onclick="uploadScreenshot()" class="bg-blue-600 text-white px-4 py-2 rounded">上传截图</button>
                     <div id="screenshot-list" class="mt-4 grid grid-cols-4 gap-4"></div>
@@ -406,6 +416,120 @@
                         <option value="success">成功</option>
                         <option value="failed">失败</option>
                     </select>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">保存</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 订阅详情面板 -->
+    <div id="subscription-detail-panel" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div class="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <img id="detail-icon" class="w-12 h-12 rounded-lg">
+                    <div>
+                        <h3 id="detail-name" class="text-xl font-bold"></h3>
+                        <span id="detail-type" class="text-sm bg-gray-100 px-2 py-1 rounded"></span>
+                    </div>
+                </div>
+                <button onclick="closeModal('subscription-detail-panel')" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <h4 class="font-bold mb-4">📋 基础信息</h4>
+                        <div id="detail-basic-info" class="space-y-2 text-sm"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-4">📊 性价比评分</h4>
+                        <div id="detail-cost-effectiveness" class="p-4 bg-gray-50 rounded-lg"></div>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <h4 class="font-bold mb-4">📈 使用频率统计</h4>
+                    <canvas id="detail-usage-chart" height="150"></canvas>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-4">💳 扣费历史</h4>
+                    <div id="detail-billing-history" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSV导入确认面板 -->
+    <div id="csv-import-panel" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">确认导入订阅</h3>
+                <button onclick="closeModal('csv-import-panel')" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <p class="text-gray-500 mb-4">请勾选要导入的订阅记录：</p>
+            <div id="csv-candidates-list" class="space-y-2 max-h-96 overflow-auto mb-6"></div>
+            <div class="flex gap-4">
+                <button onclick="confirmCsvImport()" class="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">确认导入选中项</button>
+                <button onclick="closeModal('csv-import-panel')" class="flex-1 border py-2 rounded hover:bg-gray-50">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加共享成员模态框 -->
+    <div id="add-shared-member-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">添加共享成员</h3>
+                <button onclick="closeModal('add-shared-member-modal')" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <form id="add-shared-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">订阅服务</label>
+                    <select name="subscription_id" required class="w-full border rounded px-3 py-2" id="shared-sub-select"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">成员姓名</label>
+                    <input type="text" name="name" required class="w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">分摊金额</label>
+                    <input type="number" step="0.01" name="share_amount" required class="w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">支付状态</label>
+                    <select name="payment_status" class="w-full border rounded px-3 py-2">
+                        <option value="pending">待支付</option>
+                        <option value="paid">已支付</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">添加</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑取消指南模态框 -->
+    <div id="edit-cancellation-guide-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl max-w-lg w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">编辑取消指南</h3>
+                <button onclick="closeModal('edit-cancellation-guide-modal')" class="text-gray-500 text-2xl">&times;</button>
+            </div>
+            <form id="edit-guide-form" class="space-y-4">
+                <input type="hidden" name="subscription_id" id="guide-sub-id">
+                <div>
+                    <label class="block text-sm font-medium mb-1">订阅服务</label>
+                    <select id="guide-sub-select" onchange="document.getElementById('guide-sub-id').value = this.value" class="w-full border rounded px-3 py-2"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">取消步骤</label>
+                    <textarea name="steps" rows="4" required class="w-full border rounded px-3 py-2" placeholder="例如：设置→账户→管理订阅→取消订阅"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">替代方案</label>
+                    <input type="text" name="alternative_services" class="w-full border rounded px-3 py-2" placeholder="例如：取消Netflix可用B站替代">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">备注</label>
+                    <textarea name="notes" rows="2" class="w-full border rounded px-3 py-2"></textarea>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">保存</button>
             </form>
