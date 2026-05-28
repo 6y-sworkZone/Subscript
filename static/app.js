@@ -395,12 +395,13 @@ async function loadRenewalCountdown() {
     
     document.getElementById('renewal-countdown').innerHTML = withCountdown.slice(0, 8).map(sub => {
         const days = sub.days || 30;
-        const color = days <= 3 ? 'bg-red-500' : days <= 7 ? 'bg-orange-500' : 'bg-green-500';
+        const borderColor = days <= 3 ? 'border-red-500' : days <= 7 ? 'border-orange-500' : 'border-green-500';
+        const gradientColor = days <= 3 ? '#ef4444' : days <= 7 ? '#f97316' : '#22c55e';
         const textColor = days <= 3 ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-green-600';
         
         return `
             <div class="text-center">
-                <div class="renewal-ring mx-auto mb-2 bg-gray-100 border-4 ${color.replace('bg-', 'border-')}" style="background: conic-gradient(${color.replace('bg-', '')} ${days / 30 * 360}deg, #e5e7eb 0deg)">
+                <div class="renewal-ring mx-auto mb-2 bg-gray-100 border-4 ${borderColor}" style="background: conic-gradient(${gradientColor} ${days / 30 * 360}deg, #e5e7eb 0deg)">
                     <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center">
                         <span class="text-xl font-bold ${textColor}">${days}</span>
                     </div>

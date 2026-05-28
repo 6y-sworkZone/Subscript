@@ -166,6 +166,10 @@ def renewal_decision(subscription_id: int, decision: str, db: Session = Depends(
         sub.auto_renewal = False
     elif decision == "pause":
         sub.notes = f"已暂停 - " + date.today().isoformat()
+    elif decision == "downgrade":
+        sub.notes = f"已降级 - " + date.today().isoformat() + (f"\n{sub.notes}" if sub.notes else "")
+    elif decision == "renew":
+        sub.auto_renewal = True
     db.commit()
     return {"message": f"Decision recorded: {decision}"}
 
@@ -622,6 +626,7 @@ def get_article(article_id: int, db: Session = Depends(get_db)):
 def get_favicon(url: str):
     import requests
     from bs4 import BeautifulSoup
+    from urllib.parse import urljoin
     
     try:
         if not url.startswith("http"):
@@ -633,11 +638,10 @@ def get_favicon(url: str):
         icon_link = soup.find("link", rel=["icon", "shortcut icon"])
         if icon_link:
             icon_url = icon_link.get("href")
-            if not icon_url.startswith("//"):
+            if icon_url.startswith("//"):
                 icon_url = "https:" + icon_url
             elif not icon_url.startswith("http"):
-                    from urllib.parse import urljoin
-                    icon_url = urljoin(url, icon_url)
+                icon_url = urljoin(url, icon_url)
             return {"icon_url": icon_url}
         
         return {"icon_url": f"{url.rstrip('/')}/favicon.ico"}
